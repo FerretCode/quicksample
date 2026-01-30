@@ -32,6 +32,11 @@ jobs:
         vcpkg integrate install
 
     - name: Configure
+      if: runner.os == 'Windows'
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+    - name: Configure (Linux)
+      if: runner.os == 'Linux'
       run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
     - name: Build
