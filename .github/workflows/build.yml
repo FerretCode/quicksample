@@ -31,6 +31,10 @@ jobs:
         vcpkg install curl:x64-windows
         vcpkg integrate install
 
+    - name: Install NSIS (Windows)
+      if: runner.os == 'Windows'
+      run: choco install nsis
+
     - name: Configure
       if: runner.os == 'Windows'
       run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
