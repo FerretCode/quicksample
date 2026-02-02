@@ -369,30 +369,37 @@ void MainComponent::paint(juce::Graphics &g) {
 }
 
 void MainComponent::mouseDown(const juce::MouseEvent &e) {
-    auto waveArea = getLocalBounds().reduced(MARGIN);
+    auto area = getLocalBounds().reduced(MARGIN);
+    area.removeFromTop(40 + 10);
 
-    waveArea.removeFromTop(40 + 10);
-    waveArea = waveArea.removeFromTop(250);
+    auto waveArea = area.removeFromTop(250);
 
     if (!waveArea.contains(e.position.toInt()))
         return;
 
-    float mouseX = e.position.x;
+    auto innerWave = waveArea.reduced(2);
 
-    double timeClicked =
-        visibleStartTime +
-        ((mouseX - 10.0) / (getWidth() - 20.0)) * visibleDuration;
-
-    double pixelTolerance = (visibleDuration / waveArea.getWidth()) * 10.0;
+    const float mouseX = e.position.x;
+    const float hitPointRadiusPx = 8.0f;
 
     int closestIndex = -1;
-    double minDistance = pixelTolerance;
+    float minPixelDistance = hitPointRadiusPx;
 
     for (int i = 0; i < chopPositions.size(); ++i) {
-        double distance = std::abs(chopPositions[i] - timeClicked);
+        double time = chopPositions[i];
 
-        if (distance < minDistance) {
-            minDistance = distance;
+        if (time < visibleStartTime ||
+            time > visibleStartTime + visibleDuration)
+            continue;
+
+        float xPos = innerWave.getX() +
+                     float((time - visibleStartTime) / visibleDuration) *
+                         innerWave.getWidth();
+
+        float dist = std::abs(mouseX - xPos);
+
+        if (dist < minPixelDistance) {
+            minPixelDistance = dist;
             closestIndex = i;
         }
     }
@@ -401,8 +408,6 @@ void MainComponent::mouseDown(const juce::MouseEvent &e) {
         selectedChopIndex = closestIndex;
         isDraggingChop = true;
     } else {
-        visibleStartTime = 0;
-        visibleDuration = thumbnail.getTotalLength();
         selectedChopIndex = -1;
     }
 
@@ -487,7 +492,7 @@ bool MainComponent::keyPressed(const juce::KeyPress &key) {
     if (selectedChopIndex != -1) {
         if (key == juce::KeyPress::leftKey) {
             chopPositions[selectedChopIndex] -= 0.01; // nudge back 10ms
-                                                      //
+
             transportSource.setPosition(
                 chopPositions[selectedChopIndex]); // preview
             transportSource.start();
@@ -538,14 +543,20 @@ bool MainComponent::keyPressed(const juce::KeyPress &key) {
         transportSource.setPosition(chopPositions[padIndex]);
         transportSource.start();
 
-        if (isRecording) {
+        if (isRecording || isCountingIn) {
             auto write = eventFifo.write(1);
 
             if (write.blockSize1 > 0) {
                 const int writeIndex = write.startIndex1;
 
-                eventBuffer[writeIndex] = {padIndex, recordingSampleCounter};
+                int64_t eventTime = recordingSampleCounter;
 
+                if (isCountingIn && captureNextEventAtZero) {
+                    eventTime = 0;
+                    captureNextEventAtZero = false;
+                }
+
+                eventBuffer[writeIndex] = {padIndex, eventTime};
                 eventFifo.finishedWrite(write.blockSize1);
             }
         }
@@ -675,6 +686,7 @@ void MainComponent::addMetronomeToBuffer(
 
                     recordingSampleCounter = 0;
 
+                    captureNextEventAtZero = true;
                     pendingStartRecordingUI = true;
                 } else {
                     needsRepaint = true;

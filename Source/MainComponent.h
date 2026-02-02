@@ -91,6 +91,8 @@ class MainComponent : public juce::AudioAppComponent,
     bool needsRepaint = false;
     int padFlashCountdown = 0;
 
+    bool captureNextEventAtZero = false;
+
     int64_t recordingSampleCounter =
         0; // how many samples since recording started
     int64_t totalRecordingLengthSamples = 0; // when to auto-stop
